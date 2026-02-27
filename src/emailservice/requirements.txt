@@ -118,3 +118,5 @@ wrapt==1.16.0
     #   opentelemetry-instrumentation-grpc
 zipp==3.19.1
     # via importlib-metadata
+prometheus-client==0.19.0
+    # via -r requirements.in
