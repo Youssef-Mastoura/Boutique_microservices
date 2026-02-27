@@ -24,6 +24,7 @@ import (
 	"cloud.google.com/go/profiler"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -37,6 +38,7 @@ import (
 
 const (
 	port            = "8080"
+	metricsPort     = "8081"
 	defaultCurrency = "USD"
 	cookieMaxAge    = 60 * 60 * 48
 
@@ -102,6 +104,15 @@ func main() {
 	}
 	log.Out = os.Stdout
 
+	// Start Prometheus metrics server in background on port 8081
+	go func() {
+		log.Infof("starting metrics server on :%s", metricsPort)
+		http.Handle("/metrics", promhttp.Handler())
+		if err := http.ListenAndServe(":"+metricsPort, nil); err != nil {
+			log.Errorf("failed to start metrics server: %v", err)
+		}
+	}()
+
 	svc := new(frontendServer)
 
 	otel.SetTextMapPropagator(
@@ -163,9 +174,9 @@ func main() {
 	r.HandleFunc(baseUrl+"/bot", svc.chatBotHandler).Methods(http.MethodPost)
 
 	var handler http.Handler = r
-	handler = &logHandler{log: log, next: handler}     // add logging
-	handler = ensureSessionID(handler)                 // add session ID
-	handler = otelhttp.NewHandler(handler, "frontend") // add OTel tracing
+	handler = &logHandler{log: log, next: handler}                // add logging
+	handler = ensureSessionID(handler)                            // add session ID
+	handler = otelhttp.NewHandler(handler, "frontend")            // add OTel tracing
 
 	log.Infof("starting server on %s:%s", addr, srvPort)
 	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
