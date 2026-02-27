@@ -24,6 +24,7 @@ import traceback
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateError
 from google.api_core.exceptions import GoogleAPICallError
 from google.auth.exceptions import DefaultCredentialsError
+from prometheus_client import start_http_server
 
 import demo_pb2
 import demo_pb2_grpc
@@ -35,9 +36,6 @@ from opentelemetry.instrumentation.grpc import GrpcInstrumentorServer
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-
-# @TODO: Temporarily removed in https://github.com/GoogleCloudPlatform/microservices-demo/pull/3196
-# import googlecloudprofiler
 
 from logger import getJSONLogger
 logger = getJSONLogger('emailservice-server')
@@ -116,6 +114,13 @@ class HealthCheck():
       status=health_pb2.HealthCheckResponse.SERVING)
 
 def start(dummy_mode):
+  # Start Prometheus metrics server on port 8081
+  try:
+    logger.info("Starting Prometheus metrics server on port 8081")
+    start_http_server(8081)
+  except Exception as e:
+    logger.error("Failed to start metrics server: {}".format(e))
+
   server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),)
   service = None
   if dummy_mode:
@@ -137,31 +142,7 @@ def start(dummy_mode):
     server.stop(0)
 
 def initStackdriverProfiling():
-  project_id = None
-  try:
-    project_id = os.environ["GCP_PROJECT_ID"]
-  except KeyError:
-    # Environment variable not set
-    pass
-
-  # @TODO: Temporarily removed in https://github.com/GoogleCloudPlatform/microservices-demo/pull/3196
-  # for retry in range(1,4):
-  #   try:
-  #     if project_id:
-  #       googlecloudprofiler.start(service='email_server', service_version='1.0.0', verbose=0, project_id=project_id)
-  #     else:
-  #       googlecloudprofiler.start(service='email_server', service_version='1.0.0', verbose=0)
-  #     logger.info("Successfully started Stackdriver Profiler.")
-  #     return
-  #   except (BaseException) as exc:
-  #     logger.info("Unable to start Stackdriver Profiler Python agent. " + str(exc))
-  #     if (retry < 4):
-  #       logger.info("Sleeping %d to retry initializing Stackdriver Profiler"%(retry*10))
-  #       time.sleep (1)
-  #     else:
-  #       logger.warning("Could not initialize Stackdriver Profiler after retrying, giving up")
   return
-
 
 if __name__ == '__main__':
   logger.info('starting the email service in dummy mode.')
