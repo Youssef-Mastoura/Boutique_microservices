@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     https://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,8 @@
 'use strict';
 
 const logger = require('./logger')
+const prometheus = require('prom-client');
+const http = require('http');
 
 if (process.env.DISABLE_PROFILER) {
   logger.info("Profiler disabled.")
@@ -30,6 +32,27 @@ if (process.env.DISABLE_PROFILER) {
   });
 }
 
+// --- Prometheus Metrics Setup ---
+const register = new prometheus.Registry();
+prometheus.collectDefaultMetrics({ register });
+
+http.createServer(async (req, res) => {
+  if (req.url === '/metrics') {
+    try {
+      res.setHeader('Content-Type', register.contentType);
+      res.end(await register.metrics());
+    } catch (ex) {
+      res.statusCode = 500;
+      res.end(ex.message);
+    }
+  } else {
+    res.statusCode = 404;
+    res.end('Not Found');
+  }
+}).listen(8081, () => {
+  logger.info('Metrics server listening on port 8081');
+});
+// --------------------------------
 
 if (process.env.ENABLE_TRACING == "1") {
   logger.info("Tracing enabled.")
@@ -62,7 +85,6 @@ if (process.env.ENABLE_TRACING == "1") {
 } else {
   logger.info("Tracing disabled.")
 }
-
 
 const path = require('path');
 const HipsterShopServer = require('./server');
